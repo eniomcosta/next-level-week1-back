@@ -5,6 +5,25 @@ import Item from "../interfaces/Item";
 import PointItems from "../interfaces/PointItems";
 
 class PointController {
+  async index(req: Request, res: Response) {
+    const { city, uf, items } = req.query;
+
+    const parsedItems = String(items)
+      .split(",")
+      .map((item) => Number(item.trim()));
+
+    const points = await knex
+      .select("points.*")
+      .from("points")
+      .join("point_items", "point_items.point_id", "=", "points.id")
+      .whereIn("point_items.item_id", parsedItems)
+      .where("points.city", String(city))
+      .where("points.uf", String(uf))
+      .distinct();
+
+    return res.json(points);
+  }
+
   async create(req: Request, res: Response) {
     const {
       name,
@@ -45,6 +64,8 @@ class PointController {
 
     await trx("point_items").insert(pointItems);
 
+    await trx.commit();
+
     return res.json();
   }
 
@@ -52,6 +73,10 @@ class PointController {
     const { id } = req.params;
 
     const point: Point = await knex("points").where("id", id).first();
+
+    if (!point) {
+      return res.status(400).json({ errors: "Ponto de coleta não encontrado" });
+    }
 
     const items: Item[] = await knex("items")
       .join("point_items", "items.id", "=", "point_items.item_id")
